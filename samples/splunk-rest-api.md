@@ -206,14 +206,14 @@ You might also need URI-encoding for your cURL commands. Typically, parameters w
 To access this endpoint with the value of `/var/log` for `{name}`, use URI-encoding:
 
 ```
-curl -k -u admin:pass                                                  
+curl -k -u admin:pass
     https://localhost:8089/services/data/inputs/monitor/%2Fvar%2Flog
 ```
 
 Or, you can access the endpoint by quoting the value for `{name}`:
 
 ```
-curl -k -u admin:pass                                                  
+curl -k -u admin:pass
      https://localhost:8085/services/data/inputs/monitor/?"/var/log"
 ```
 
@@ -225,7 +225,7 @@ For example:
 
 ```
 curl -k -u admin:pass https://localhost:8089/services/saved/searches \
-     -d name=MySavedSearch                                           \ 
+     -d name=MySavedSearch                                           \
      --data-urlencode search="index=_internal source=*metrics.log"
 ```
 
@@ -408,7 +408,7 @@ Typically, response data are resource properties formatted as key/value pairs.
             <s:key name="wildcardFields">...</s:key>
           </s:dict>
       </s:key>
-       . . .                   
+       . . .
     </s:dict>
   </content>
 ```
@@ -549,9 +549,9 @@ curl -k -u admin:pass https://localhost:8089/servicesNS/admin/search/saved/searc
 Share an object and change its permissions.
 
 ```
-curl -k -u admin:pass https://localhost:8089/servicesNS/alice/myapp/saved/searches/mysearch/acl  
-        -d owner=alice 
-        -d perms.read=* 
+curl -k -u admin:pass https://localhost:8089/servicesNS/alice/myapp/saved/searches/mysearch/acl
+        -d owner=alice
+        -d perms.read=*
         -d sharing=app
 ```
 
@@ -562,8 +562,8 @@ The admin user sets Alice as the saved search owner, grants all users read permi
 Make the saved search available to all users and change the context to a different app.
 
 ```
-curl -k -u admin:pass https://localhost:8089/servicesNS/nobody/myapp/saved/searches/mysearch/move  
-        -d user=nobody 
+curl -k -u admin:pass https://localhost:8089/servicesNS/nobody/myapp/saved/searches/mysearch/move
+        -d user=nobody
         -d app=otherapp
 ```
 

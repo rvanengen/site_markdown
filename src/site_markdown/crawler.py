@@ -98,6 +98,7 @@ def extract_page(html: str, url: str) -> tuple[Page, list[str]]:
     for node in content.find_all(src=True):
         node["src"] = urljoin(url, node["src"])
     body = markdownify(str(content), heading_style="ATX", bullets="-")
+    body = re.sub(r"[ \t]+\n", "\n", body)
     body = re.sub(r"\n[ \t]+\n", "\n\n", body)
     body = re.sub(r"\n{3,}", "\n\n", body).strip()
     return Page(url=url, title=title, markdown=body), links
