@@ -5,7 +5,7 @@ import time
 from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterable
+from typing import Callable
 from urllib.parse import urldefrag, urljoin, urlsplit, urlunsplit
 from urllib.robotparser import RobotFileParser
 
@@ -41,7 +41,7 @@ class CrawlResult:
 
 
 def normalize_url(url: str) -> str:
-    """Return a canonical HTTP(S) crawl URL without query or fragment."""
+    """Return a canonical HTTP(S) crawl URL without its fragment."""
     raw, _ = urldefrag(url.strip())
     parts = urlsplit(raw)
     if parts.scheme.lower() not in {"http", "https"} or not parts.netloc:
@@ -52,10 +52,12 @@ def normalize_url(url: str) -> str:
     host = (parts.hostname or "").lower()
     port = parts.port
     netloc = host if port is None else f"{host}:{port}"
-    return urlunsplit((parts.scheme.lower(), netloc, path, "", ""))
+    return urlunsplit((parts.scheme.lower(), netloc, path, parts.query, ""))
 
 
 def _in_scope(candidate: str, start: str, scope: str) -> bool:
+    if scope == "linked":
+        return True
     target, root = urlsplit(candidate), urlsplit(start)
     if target.netloc != root.netloc:
         return False
@@ -75,13 +77,6 @@ def extract_page(html: str, url: str) -> tuple[Page, list[str]]:
     title_node = soup.find("h1") or soup.find("title")
     title = title_node.get_text(" ", strip=True) if title_node else url
 
-    links = []
-    for anchor in soup.find_all("a", href=True):
-        try:
-            links.append(normalize_url(urljoin(url, anchor["href"])))
-        except (ValueError, TypeError):
-            continue
-
     content = soup.find("main") or soup.find("article") or soup.body or soup
     for node in content.select(
         "script, style, noscript, nav, footer, form, button, svg, textarea, "
@@ -93,11 +88,18 @@ def extract_page(html: str, url: str) -> tuple[Page, list[str]]:
     first_heading = content.find("h1")
     if first_heading and first_heading.get_text(" ", strip=True) == title:
         first_heading.decompose()
+    links = []
+    for anchor in content.find_all("a", href=True):
+        try:
+            links.append(normalize_url(urljoin(url, anchor["href"])))
+        except (ValueError, TypeError):
+            continue
     for node in content.find_all(href=True):
         node["href"] = urljoin(url, node["href"])
     for node in content.find_all(src=True):
         node["src"] = urljoin(url, node["src"])
     body = markdownify(str(content), heading_style="ATX", bullets="-")
+    body = body.replace("\r\n", "\n").replace("\r", "\n")
     body = re.sub(r"[ \t]+\n", "\n", body)
     body = re.sub(r"\n[ \t]+\n", "\n\n", body)
     body = re.sub(r"\n{3,}", "\n\n", body).strip()
@@ -110,7 +112,7 @@ def crawl(
     max_pages: int = 100,
     delay: float = 0.25,
     timeout: float = 20,
-    scope: str = "path",
+    scope: str = "linked",
     respect_robots: bool = True,
     session: requests.Session | None = None,
     progress: Callable[[str], None] | None = None,
@@ -121,15 +123,24 @@ def crawl(
     client = session or requests.Session()
     client.headers.setdefault("User-Agent", USER_AGENT)
 
-    robots: RobotFileParser | None = None
-    if respect_robots:
-        parts = urlsplit(start)
-        robots = RobotFileParser(urlunsplit((parts.scheme, parts.netloc, "/robots.txt", "", "")))
+    robots_by_origin: dict[str, RobotFileParser | None] = {}
+
+    def allowed_by_robots(url: str) -> bool:
+        if not respect_robots:
+            return True
+        parts = urlsplit(url)
+        origin = urlunsplit((parts.scheme, parts.netloc, "", "", ""))
+        if origin in robots_by_origin:
+            parser = robots_by_origin[origin]
+            return parser is None or parser.can_fetch(USER_AGENT, url)
+        parser = RobotFileParser(origin + "/robots.txt")
         try:
-            response = client.get(robots.url, timeout=timeout)
-            robots.parse(response.text.splitlines() if response.ok else [])
+            response = client.get(parser.url, timeout=timeout)
+            parser.parse(response.text.splitlines() if response.ok else [])
         except requests.RequestException:
-            robots = None
+            parser = None
+        robots_by_origin[origin] = parser
+        return parser is None or parser.can_fetch(USER_AGENT, url)
 
     queue = deque([start])
     queued = {start}
@@ -137,7 +148,7 @@ def crawl(
     errors: list[tuple[str, str]] = []
     while queue and len(pages) < max_pages:
         url = queue.popleft()
-        if robots and not robots.can_fetch(USER_AGENT, url):
+        if not allowed_by_robots(url):
             errors.append((url, "blocked by robots.txt"))
             continue
         if progress:

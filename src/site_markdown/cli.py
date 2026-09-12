@@ -17,7 +17,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-pages", type=int, default=100)
     parser.add_argument("--delay", type=float, default=0.25, help="seconds between page requests")
     parser.add_argument("--timeout", type=float, default=20, help="request timeout in seconds")
-    parser.add_argument("--scope", choices=("path", "host"), default="path")
+    parser.add_argument(
+        "--scope",
+        choices=("linked", "path", "host"),
+        default="linked",
+        help="linked follows all links; path and host restrict the crawl (default: linked)",
+    )
     parser.add_argument("--ignore-robots", action="store_true", help="do not consult robots.txt")
     return parser
 
@@ -40,7 +45,9 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     print(f"Wrote {len(result.pages)} page(s) to {args.output}")
     if result.errors:
-        print(f"Skipped {len(result.errors)} URL(s); use crawl logs for details.", file=sys.stderr)
+        print(f"Skipped {len(result.errors)} URL(s):", file=sys.stderr)
+        for url, reason in result.errors:
+            print(f"  {url}: {reason}", file=sys.stderr)
     return 0
 
 

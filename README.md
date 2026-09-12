@@ -17,7 +17,12 @@ site-markdown --help
 site-markdown https://example.com/docs/ -o example-docs.md
 ```
 
-By default, only HTML pages on the same host whose paths sit under the input URL are crawled. Use `--scope host` to follow every same-host link, `--max-pages` to bound a crawl, and `--delay` to pause between requests.
+By default, every HTTP(S) page linked from a captured page is eligible, including
+links on other hosts. The crawl continues recursively and `--max-pages` keeps it
+bounded. Use `--scope host` for same-host links only or `--scope path` for links
+beneath the starting path. `--delay` pauses between page requests.
+The crawler honors each host's `robots.txt`; use `--ignore-robots` only when you
+have permission to bypass it.
 
 ## Sample
 
